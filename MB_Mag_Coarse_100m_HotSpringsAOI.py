@@ -30,8 +30,7 @@ def run(plotIt=True):
         then applying an Lp norm to produce a compact model.
     """
 
-    # Start by importing files HOW DO I DO THIS??
-    
+ 
     
     # %% User input
     # Plotting parameters, max and min Mag Susc in SI units
@@ -41,21 +40,23 @@ def run(plotIt=True):
     # weight exponent for default weighting
     wgtexp = 3.
     
-    # Define the inducing field parameter
+    # Define the inducing field parameter (Total Field, Incl, Decl)
     H0 = (54318, 70.139, 16.063)
 
-# Load a MESH file?????
+        # Start by importing files HOW DO I DO THIS??
+    
+        # Load a MESH file?????
 
-# Load a topo file?????
+        # Load a TOPO file?????
 
-# Load a TMI OBS file?????
+        # Load a TMI OBS file?????
 
-# Load an INPUT file?????
+        # Load an INPUT file?????
 
 # %%
     # Read in the input file which included all parameters at once
     # (mesh, topo, model, survey, inv param, etc.)
-    driver = PF.MagneticsDriver.MagneticsDriver_Inv(input_file)
+    driver = PF.MagneticsDriver.MagneticsDriver_Inv(MB_100m_input_file)
     # %%
     # Now we need to create the survey and model information.
 
