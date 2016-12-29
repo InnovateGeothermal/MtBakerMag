@@ -1,8 +1,9 @@
-FILE MB_100m_Mesh.txt					! Mesh file
+FILE MB_100m_Mesh_v2.txt					! Mesh file
 FILE MB_TMI_OBS_100m.prn			! Obsfile
-TOPO MB_Topo_100m.topo					! TOPO Topofilename !or! FILE Activecellfilename. ! 0 = air, inactive, 1 = dynamic, -1 = static.
+TOPO MB_Topo_50m.txt					! TOPO Topofilename !or! FILE Activecellfilename. ! 0 = air, inactive, 1 = dynamic, -1 = static.
 VALUE 1E-4			! Starting model | VALUE 1E-4
 VALUE 0.0			! Reference model
+DEFAULT !..\AzmDip.dat			! Magnetization vector model
 DEFAULT				! Cell based weight file
 VALUE 1				! target chi factor | DEFAULT=1
 VALUE 1 1 1 1			! alpha s, x ,y ,z
