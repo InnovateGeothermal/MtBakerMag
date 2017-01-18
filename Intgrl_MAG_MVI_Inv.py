@@ -173,6 +173,8 @@ if CMI:
     m_lpy[m_lpy==-100] = 0
     m_lpz[m_lpz==-100] = 0
     
+    mvec = np.c_[m_lpx, m_lpy, m_lpz]
+    
     amp = np.sqrt(m_lpx**2. + m_lpy**2. + m_lpz**2.)
     
     Mesh.TensorMesh.writeVectorUBC(mesh,work_dir + "CMI_lplq.vec",mvec)
