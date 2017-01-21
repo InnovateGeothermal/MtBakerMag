@@ -26,7 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 work_dir = ".\\"
-input_file = "MB_100m_input_file.inp"
+input_file = "MB_50m_input_file.inp"
 # %%
 # Read in the input file which included all parameters at once
 # (mesh, topo, model, survey, inv param, etc.)
