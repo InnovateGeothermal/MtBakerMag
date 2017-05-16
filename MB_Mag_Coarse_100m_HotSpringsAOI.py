@@ -45,7 +45,7 @@ H0 = (54318, 70.139, 16.063)
 # DOM: Just point to your working directory where your input files are.
 # Since you move them to the current directory, it is just .\
 work_dir = ".\\"
-input_file = "MB_100m_input_file.inp"
+input_file = "MB_100m_input_file_floor30nT.inp"
 # %%
 # Read in the input file which included all parameters at once
 # (mesh, topo, model, survey, inv param, etc.)
