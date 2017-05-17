@@ -114,8 +114,8 @@ reg.mref = driver.mref[dynamic]
 reg.cell_weights = wr
 
 # Specify how the optimization will proceed
-opt = Optimization.ProjectedGNCG(maxIter=150, lower=driver.bounds[0],
-                                 upper=driver.bounds[1], maxIterLS=20,
+opt = Optimization.ProjectedGNCG(maxIter=500, lower=driver.bounds[0],
+                                 upper=driver.bounds[1], maxIterLS=50,
                                  maxIterCG=20, tolCG=1e-3)
 
 # Define misfit function (obs-calc)
@@ -159,8 +159,10 @@ PF.Magnetics.plot_obs_2D(rxLoc, d, 'Observed Data')
 if getattr(invProb, 'l2model', None) is not None:
     # reconstructing l2 model mesh with air cells and active dynamic cells
     L2out = activeMap * invProb.l2model
-    Mesh.TensorMesh.writeModelUBC(mesh, work_dir + 'L2_model.sus', L2out)
+    Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + 'L2_model.sus', L2out)
+    pred = invProb.dpred
+    PF.Magnetics.writeUBCobs(work_dir + out_dir + 'UBC_Model.pre', survey, pred)
 
 # reconstructing lp model mesh with air cells and active dynamic cells
 Lpout = activeMap*mrec
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + 'Lp_model.sus', Lpout)
+Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + 'Lp_model.sus', Lpout)
