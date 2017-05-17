@@ -24,11 +24,16 @@ from SimPEG import Mesh, Directives, Maps, InvProblem, Optimization, DataMisfit,
 import SimPEG.PF as PF
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 # targmis = simpeg.Directives.TargetMisfit()
 
 work_dir = ".\\"
+out_dir = "SimPEG_AMP_Inv\\"
 input_file = "MB_50m_input_file.inp"
+
+os.system('mkdir ' + work_dir+out_dir)
+
 # %%
 # Read in the input file which included all parameters at once
 # (mesh, topo, model, survey, inv param, etc.)
@@ -37,7 +42,7 @@ driver = PF.MagneticsDriver.MagneticsDriver_Inv(work_dir + input_file)
 # Access the mesh and survey information
 mesh = driver.mesh
 survey = driver.survey
-
+active = driver.activeCells
 # %% STEP 1: EQUIVALENT SOURCE LAYER
 # The first step inverts for an equiavlent source layer in order to convert the
 # observed TMI data to magnetic field Amplitude.
@@ -58,7 +63,7 @@ surfMap = Maps.InjectActiveCells(mesh, surf, -100)
 idenMap = Maps.IdentityMap(nP=nC)
 
 # Create static map
-prob = PF.Magnetics.MagneticIntegral(mesh, chiMap = idenMap, actInd=surf, equiSourceLayer = True)
+prob = PF.Magnetics.MagneticIntegral(mesh, chiMap = idenMap, actInd=surf, equiSourceLayer=True)
 prob.solverOpts['accuracyTol'] = 1e-4
 
 # Pair the survey and problem
@@ -75,7 +80,7 @@ opt = Optimization.ProjectedGNCG(maxIter=500, lower=-np.inf,
 
 # Define misfit function (obs-calc)
 dmis = DataMisfit.l2_DataMisfit(survey)
-dmis.Wd = 1./survey.std
+dmis.W = 1./survey.std
 
 # Create the default L2 inverse problem from the above objects
 invProb = InvProblem.BaseInvProblem(dmis, reg, opt)
@@ -103,67 +108,70 @@ mrec = inv.run(mstart)
 pred = invProb.dpred
 PF.Magnetics.writeUBCobs(work_dir+'EQS_predicted.pre', survey, pred)
 # Ouput result
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "EquivalentSource.sus", surfMap*mrec)
+Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "EquivalentSource.sus", surfMap*mrec)
 
-#%% STEP 2: COMPUTE AMPLITUDE DATA
+# %% STEP 2: COMPUTE AMPLITUDE DATA
 # Now that we have an equialent source layer, we can forward model alh three
 # components of the field and add them up: |B| = ( Bx**2 + Bx**2 + Bx**2 )**0.5
 
 # Won't store the sensitivity and output 'xyz' data.
 prob.forwardOnly = True
-prob.rtype = 'xyz'
-pred = prob.Intrgl_Fwr_Op(m=mrec)
+pred_x = prob.Intrgl_Fwr_Op(m=mrec, recType='x')
+pred_y = prob.Intrgl_Fwr_Op(m=mrec, recType='y')
+pred_z = prob.Intrgl_Fwr_Op(m=mrec, recType='z')
 
 ndata = survey.nD
 
-damp = np.sqrt(pred[:ndata]**2. +
-               pred[ndata:2*ndata]**2. +
-               pred[2*ndata:]**2.)
+d_amp = np.sqrt(pred_x**2. +
+                pred_y**2. +
+                pred_z**2.)
 
 rxLoc = survey.srcField.rxList[0].locs
-PF.Magnetics.plot_obs_2D(rxLoc, survey.dobs, varstr='TMI Data')
-PF.Magnetics.plot_obs_2D(rxLoc, damp, varstr='Amplitude Data')
 
 # Write data out
-PF.Magnetics.writeUBCobs(work_dir+'Amplitude_data.obs', survey, damp)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'Amplitude_data.obs', survey, d_amp)
 
 # %% STEP 3: RUN AMPLITUDE INVERSION
 # Now that we have |B| data, we can invert. This is a non-linear inversion,
 # which requires some special care for the sensitivity weights (see Directives)
 
 # Re-set the active cells to entire mesh
-actv = driver.activeCells
-
 # Create active map to go from reduce space to full
-actvMap = Maps.InjectActiveCells(mesh, actv, -100)
-nC = int(len(actv))
+actvMap = Maps.InjectActiveCells(mesh, active, -100)
+nC = len(active)
 
 # Create identity map
 idenMap = Maps.IdentityMap(nP=nC)
 
-mstart = np.ones(len(actv))*1e-4
+mstart = np.ones(len(active))*1e-4
 
 # Create the forward model operator
 prob = PF.Magnetics.MagneticAmplitude(mesh, chiMap=idenMap,
-                                      actInd=actv)
+                                      actInd=active)
 prob.chi = mstart
 
 # Change the survey to xyz components
 survey.srcField.rxList[0].rxType = 'xyz'
 
 # Pair the survey and problem
+survey.unpair()
 survey.pair(prob)
 
 # Re-set the observations to |B|
-survey.dobs = damp
+survey.dobs = d_amp
 
 # Create a sparse regularization
-reg = Regularization.Sparse(mesh, indActive=actv, mapping=idenMap)
-reg.mref = driver.mref
+# Create a sparse regularization
+reg = Regularization.Sparse(mesh, indActive=active, mapping=idenMap)
+reg.mref = np.zeros(nC)
+reg.norms = driver.lpnorms
+if driver.eps is not None:
+   reg.eps_p = driver.eps[0]
+   reg.eps_q = driver.eps[1]
 
 # Data misfit function
 dmis = DataMisfit.l2_DataMisfit(survey)
-dmis.Wd = 1/survey.std
+dmis.W = 1/survey.std
 
 # Add directives to the inversion
 opt = Optimization.ProjectedGNCG(maxIter=3000, lower=0., upper=1.,
@@ -176,24 +184,28 @@ invProb = InvProblem.BaseInvProblem(dmis, reg, opt)
 betaest = Directives.BetaEstimate_ByEig()
 
 # Specify the sparse norms
-IRLS = Directives.Update_IRLS(norms=([0, 1, 1, 1]),
-                              eps=None, f_min_change=5e-3,
-                              minGNiter=3, coolingRate=2)
+IRLS = Directives.Update_IRLS(f_min_change=1e-3,
+                              minGNiter=3, coolingRate=1, chifact=0.25,
+                              maxIRLSiter=10)
 
 # Special directive specific to the mag amplitude problem. The sensitivity
 # weights are update between each iteration.
-update_Jacobi = Directives.Amplitude_Inv_Iter()
+update_SensWeight = Directives.UpdateSensWeighting()
+update_Jacobi = Directives.UpdatePreCond()
+
+saveModel = Directives.SaveUBCModelEveryIteration(mapping=actvMap)
+saveModel.fileName = work_dir + out_dir + 'AmpInv'
 
 # Put all together
 inv = Inversion.BaseInversion(invProb,
-                              directiveList=[update_Jacobi, IRLS, betaest])
+                              directiveList=[betaest, IRLS, update_SensWeight,
+                                             update_Jacobi, saveModel])
 
 # Invert
 mrec = inv.run(mstart)
 
 # Outputs
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_l2l2.sus", actvMap*reg.l2model)
+if getattr(invProb, 'l2model', None) is not None:
+   Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_l2l2.sus", actvMap*invProb.l2model)
 Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_lplq.sus", actvMap*invProb.model)
 PF.Magnetics.writeUBCobs(work_dir+'Amplitude_Inv.pre', survey, invProb.dpred)
-
-PF.Magnetics.plot_obs_2D(rxLoc, invProb.dpred, varstr='Amplitude Data')
