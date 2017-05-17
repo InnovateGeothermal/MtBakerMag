@@ -25,6 +25,8 @@ import SimPEG.PF as PF
 import numpy as np
 import matplotlib.pyplot as plt
 
+# targmis = simpeg.Directives.TargetMisfit()
+
 work_dir = ".\\"
 input_file = "MB_50m_input_file.inp"
 # %%
@@ -67,7 +69,7 @@ reg = Regularization.Simple(mesh, indActive=surf)
 reg.mref = np.zeros(nC)
 
 # Specify how the optimization will proceed, set susceptibility bounds to inf
-opt = Optimization.ProjectedGNCG(maxIter=150, lower=-np.inf,
+opt = Optimization.ProjectedGNCG(maxIter=500, lower=-np.inf,
                                  upper=np.inf, maxIterLS=20,
                                  maxIterCG=20, tolCG=1e-3)
 
@@ -94,8 +96,12 @@ inv = Inversion.BaseInversion(invProb,
 
 # Run the equivalent source inversion
 mstart = np.zeros(nC)
+# print ('Target Misfit for Equivalent Source Inversion is: {:.1f}'.format(targmis.target))
+print ('Number of Data for Inversion is: {:.1f}'.format(survey.nD))
 mrec = inv.run(mstart)
 
+pred = invProb.dpred
+PF.Magnetics.writeUBCobs(work_dir+'EQS_predicted.pre', survey, pred)
 # Ouput result
 Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "EquivalentSource.sus", surfMap*mrec)
 
@@ -160,8 +166,8 @@ dmis = DataMisfit.l2_DataMisfit(survey)
 dmis.Wd = 1/survey.std
 
 # Add directives to the inversion
-opt = Optimization.ProjectedGNCG(maxIter=100, lower=0., upper=1.,
-                                 maxIterLS=20, maxIterCG=10,
+opt = Optimization.ProjectedGNCG(maxIter=3000, lower=0., upper=1.,
+                                 maxIterLS=50, maxIterCG=30,
                                  tolCG=1e-3)
 
 invProb = InvProblem.BaseInvProblem(dmis, reg, opt)
