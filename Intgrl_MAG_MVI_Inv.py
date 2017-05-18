@@ -27,11 +27,14 @@ from SimPEG import Mesh, Directives, Maps, InvProblem, Optimization
 from SimPEG import DataMisfit, Inversion, Regularization
 import SimPEG.PF as PF
 import numpy as np
+import os
 
 # Define the inducing field parameter
 work_dir = ".\\"
+out_dir = "SimPEG_MVI_Inv\\"
 input_file = "MB_100m_input_file.inp"
 
+os.system('mkdir ' + work_dir+out_dir)
 CMI = True
 
 # %% INPUTS
@@ -50,8 +53,14 @@ actv = driver.activeCells
 mstart = np.ones(3*len(actv))*1e-4
 
 # Create active map to go from reduce space to full
-actvMap = Maps.InjectActiveCells(mesh, actv, -100)
+actvMap = Maps.InjectActiveCells(mesh, actv, 0)
 nC = int(len(actv))
+
+# Create identity map
+# Create wires to link the regularization to each model blocks
+wires = Maps.Wires(('prim', nC),
+           ('second', nC),
+           ('third', nC))
 
 # Create identity map
 idenMap = Maps.IdentityMap(nP=3*nC)
@@ -62,25 +71,35 @@ mstart= np.ones(3*len(actv))*1e-4
 prob = PF.Magnetics.MagneticVector(mesh, chiMap=idenMap,
                                      actInd=actv)
 
-# Explicitely set starting model
-prob.chi = mstart
-
 # Pair the survey and problem
 survey.pair(prob)
 
 
-# Create sensitivity weights from our linear forward operator
-wr = np.sum(prob.G**2., axis=0)**0.5
-wr = (wr/np.max(wr))
-
-# Create a regularization
-reg = Regularization.Sparse(mesh, indActive=actv, mapping=idenMap, nModels=3)
-reg.cell_weights = wr
-reg.mref = np.zeros(3*nC)
-
 # Data misfit function
 dmis = DataMisfit.l2_DataMisfit(survey)
-dmis.Wd = 1./survey.std
+dmis.W = 1./survey.std
+
+
+# Create sensitivity weights from our linear forward operator
+wr = np.zeros(prob.F.shape[1])
+for ii in range(survey.nD):
+    wr += prob.F[ii, :]**2.
+wr = wr**0.5
+wr = (wr/np.max(wr))
+
+
+# Create a regularization
+reg_p = Regularization.Sparse(mesh, indActive=actv, mapping=wires.prim)
+reg_p.cell_weights = wires.prim* wr
+
+reg_s = Regularization.Sparse(mesh, indActive=actv, mapping=wires.second)
+reg_s.cell_weights = wires.second * wr
+
+reg_t = Regularization.Sparse(mesh, indActive=actv, mapping=wires.third)
+reg_t.cell_weights = wires.third * wr
+
+reg = reg_p + reg_s + reg_t
+
 
 # Add directives to the inversion
 opt = Optimization.ProjectedGNCG(maxIter=30, lower=-10., upper=10.,
@@ -92,37 +111,19 @@ betaest = Directives.BetaEstimate_ByEig()
 
 betaCool = Directives.BetaSchedule(coolingFactor=2., coolingRate=1)
 
-update_Jacobi = Directives.Update_lin_PreCond()
+update_Jacobi = Directives.UpdatePreCond()
+targetMisfit = Directives.TargetMisfit()
 
+saveModel = Directives.SaveUBCModelEveryIteration(mapping = actvMap)
+saveModel.fileName = work_dir + out_dir + 'MVI'
 inv = Inversion.BaseInversion(invProb,
-                              directiveList=[betaest, update_Jacobi, betaCool])
-
+                              directiveList=[betaest, update_Jacobi, betaCool,
+                                             targetMisfit, saveModel])
 mrec = inv.run(mstart)
 
-# %%# Output the vector model and amplitude
-
-# m_l2 = actvMap * reg.l2model[0:nC]
-# m_l2[m_l2==-100] = np.nan
-
-m_lpx = actvMap * mrec[0:nC]
-m_lpy = actvMap * mrec[nC:2*nC]
-m_lpz = actvMap * -mrec[2*nC:]
-
-mvec = np.c_[m_lpx, m_lpy, m_lpz]
-
-m_lpx[m_lpx == -100] = 0
-m_lpy[m_lpy == -100] = 0
-m_lpz[m_lpz == -100] = 0
-
-amp = np.sqrt(m_lpx**2. + m_lpy**2. + m_lpz**2.)
-
-Mesh.TensorMesh.writeVectorUBC(mesh,work_dir + "MVI_lplq.vec",mvec)
-Mesh.TensorMesh.writeModelUBC(mesh,work_dir + "MVI_lplq.amp",amp)
-PF.Magnetics.writeUBCobs(work_dir+'MVI.pre',survey,invProb.dpred)
 
 obs_loc = survey.srcField.rxList[0].locs
-
-PF.Magnetics.plot_obs_2D(obs_loc,invProb.dpred,varstr='MVI Predicted data')
+PF.Magnetics.writeUBCobs(work_dir+out_dir+'MVI.pre', survey, invProb.dpred)
 
 #%% Re-run the inversion if the CMI flag is activated.
 # The script will try to first load the amplitude model.
@@ -131,20 +132,30 @@ PF.Magnetics.plot_obs_2D(obs_loc,invProb.dpred,varstr='MVI Predicted data')
 if CMI:
 
     # Try to load amplitude model.
-    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, 'Amplitude_lplq.sus')
+    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, work_dir + 'Amplitude_lplq.sus')
 
     # Create rescaled weigths
     mamp = (MAI_m[actv]/MAI_m[actv].max() + 1e-2)**-1.
 
     # Update the sensitivity weights with amplitude weights added
-    reg = Regularization.Sparse(mesh, indActive=actv, mapping=idenMap, nModels=3)
-    wr = np.sum(prob.G**2., axis=0)**0.5
+    wr = np.sum(prob.F**2., axis=0)**0.5
     wr = (wr/np.max(wr))*np.r_[mamp, mamp, mamp]
-    reg.cell_weights = wr
+
+    # Create a regularization
+    reg_p = Regularization.Sparse(mesh, indActive=actv, mapping=wires.prim)
+    reg_p.cell_weights = wires.prim* wr
+
+    reg_s = Regularization.Sparse(mesh, indActive=actv, mapping=wires.second)
+    reg_s.cell_weights = wires.second * wr
+
+    reg_t = Regularization.Sparse(mesh, indActive=actv, mapping=wires.third)
+    reg_t.cell_weights = wires.third * wr
+
+    reg = reg_p + reg_s + reg_t
 
     # Data misfit function
     dmis = DataMisfit.l2_DataMisfit(survey)
-    dmis.Wd = 1./survey.std
+    dmis.W = 1./survey.std
 
     # Add directives to the inversion
     opt = Optimization.ProjectedGNCG(maxIter=30, lower=-10., upper=10.,
@@ -155,29 +166,17 @@ if CMI:
 
     betaCool = Directives.BetaSchedule(coolingFactor=2., coolingRate=1)
 
-    update_Jacobi = Directives.Update_lin_PreCond()
+    update_Jacobi = Directives.UpdatePreCond()
+    targetMisfit = Directives.TargetMisfit()
 
+    saveModel = Directives.SaveUBCModelEveryIteration(mapping = actvMap)
+    saveModel.fileName = work_dir + out_dir + 'CMI'
     inv = Inversion.BaseInversion(invProb,
-                                  directiveList=[betaest, update_Jacobi, betaCool])
-
+                                  directiveList=[betaest, update_Jacobi, betaCool,
+                                                 targetMisfit, saveModel])
     mrec = inv.run(mstart)
 
-    m_lpx = actvMap * mrec[0:nC]
-    m_lpy = actvMap * mrec[nC:2*nC]
-    m_lpz = actvMap * -mrec[2*nC:]
-
-    mvec = np.c_[m_lpx, m_lpy, m_lpz]
-
-    m_lpx[m_lpx==-100] = 0
-    m_lpy[m_lpy==-100] = 0
-    m_lpz[m_lpz==-100] = 0
-
-    amp = np.sqrt(m_lpx**2. + m_lpy**2. + m_lpz**2.)
-
-    Mesh.TensorMesh.writeVectorUBC(mesh,work_dir + "CMI_lplq.vec",mvec)
-    Mesh.TensorMesh.writeModelUBC(mesh,work_dir + "CMI_lplq.amp",amp)
-    PF.Magnetics.writeUBCobs(work_dir+'CMI.pre',survey,invProb.dpred)
+    PF.Magnetics.writeUBCobs(work_dir+out_dir+'CMI.pre',survey,invProb.dpred)
 
     obs_loc = survey.srcField.rxList[0].locs
 
-    PF.Magnetics.plot_obs_2D(obs_loc,invProb.dpred,varstr='CMI Predicted data')
