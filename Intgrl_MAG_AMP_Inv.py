@@ -106,9 +106,9 @@ print ('Number of Data for Inversion is: {:.1f}'.format(survey.nD))
 mrec = inv.run(mstart)
 
 pred = invProb.dpred
-PF.Magnetics.writeUBCobs(work_dir+'EQS_predicted.pre', survey, pred)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'EQS_predicted.pre', survey, pred)
 # Ouput result
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "EquivalentSource.sus", surfMap*mrec)
+Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "EquivalentSource.sus", surfMap*mrec)
 
 # %% STEP 2: COMPUTE AMPLITUDE DATA
 # Now that we have an equialent source layer, we can forward model alh three
@@ -208,4 +208,4 @@ mrec = inv.run(mstart)
 if getattr(invProb, 'l2model', None) is not None:
    Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_l2l2.sus", actvMap*invProb.l2model)
 Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_lplq.sus", actvMap*invProb.model)
-PF.Magnetics.writeUBCobs(work_dir+'Amplitude_Inv.pre', survey, invProb.dpred)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'Amplitude_Inv.pre', survey, invProb.dpred)
