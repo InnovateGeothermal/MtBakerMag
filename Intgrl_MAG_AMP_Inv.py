@@ -30,7 +30,7 @@ import os
 
 work_dir = ".\\"
 out_dir = "SimPEG_AMP_Inv\\"
-input_file = "MB_50m_input_file.inp"
+input_file = "MB_100m_input_file.inp"
 
 os.system('mkdir ' + work_dir+out_dir)
 
@@ -42,6 +42,7 @@ driver = PF.MagneticsDriver.MagneticsDriver_Inv(work_dir + input_file)
 # Access the mesh and survey information
 mesh = driver.mesh
 survey = driver.survey
+
 active = driver.activeCells
 # %% STEP 1: EQUIVALENT SOURCE LAYER
 # The first step inverts for an equiavlent source layer in order to convert the
@@ -148,7 +149,7 @@ mstart = np.ones(len(active))*1e-4
 # Create the forward model operator
 prob = PF.Magnetics.MagneticAmplitude(mesh, chiMap=idenMap,
                                       actInd=active)
-prob.chi = mstart
+prob.model = mstart
 
 # Change the survey to xyz components
 survey.srcField.rxList[0].rxType = 'xyz'
@@ -174,18 +175,18 @@ dmis = DataMisfit.l2_DataMisfit(survey)
 dmis.W = 1/survey.std
 
 # Add directives to the inversion
-opt = Optimization.ProjectedGNCG(maxIter=3000, lower=0., upper=1.,
-                                 maxIterLS=50, maxIterCG=30,
+opt = Optimization.ProjectedGNCG(maxIter=40, lower=0., upper=1.,
+                                 maxIterLS=10, maxIterCG=30,
                                  tolCG=1e-3)
 
 invProb = InvProblem.BaseInvProblem(dmis, reg, opt)
 
 # Here is the list of directives
-betaest = Directives.BetaEstimate_ByEig()
+betaest = Directives.BetaEstimate_ByEig(beta0_ratio=1e1)
 
 # Specify the sparse norms
 IRLS = Directives.Update_IRLS(f_min_change=1e-3,
-                              minGNiter=3, coolingRate=1, chifact=0.25,
+                              minGNiter=3, coolingRate=3, chifact=1.,
                               maxIRLSiter=10)
 
 # Special directive specific to the mag amplitude problem. The sensitivity
@@ -206,6 +207,6 @@ mrec = inv.run(mstart)
 
 # Outputs
 if getattr(invProb, 'l2model', None) is not None:
-   Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_l2l2.sus", actvMap*invProb.l2model)
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + "Amplitude_lplq.sus", actvMap*invProb.model)
-PF.Magnetics.writeUBCobs(work_dir+'Amplitude_Inv.pre', survey, invProb.dpred)
+   Mesh.TensorMesh.writeModelUBC(mesh, work_dir +out_dir+ "Amplitude_l2l2.sus", actvMap*invProb.l2model)
+Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "Amplitude_lplq.sus", actvMap*invProb.model)
+PF.Magnetics.writeUBCobs(work_dir+out_dir+'Amplitude_Inv.pre', survey, invProb.dpred)

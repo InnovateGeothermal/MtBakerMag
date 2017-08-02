@@ -132,7 +132,7 @@ PF.Magnetics.writeUBCobs(work_dir+out_dir+'MVI.pre', survey, invProb.dpred)
 if CMI:
 
     # Try to load amplitude model.
-    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, work_dir + 'Amplitude_lplq.sus')
+    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, work_dir + '\\SimPEG_AMP_Inv\\AmpInv_Synthetic.sus')
 
     # Create rescaled weigths
     mamp = (MAI_m[actv]/MAI_m[actv].max() + 1e-2)**-1.
