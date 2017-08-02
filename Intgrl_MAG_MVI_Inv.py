@@ -32,7 +32,7 @@ import os
 # Define the inducing field parameter
 work_dir = ".\\"
 out_dir = "SimPEG_MVI_Inv\\"
-input_file = "MB_100m_input_file.inp"
+input_file = "MB_50m_input_file.inp"
 
 os.system('mkdir ' + work_dir+out_dir)
 CMI = True

@@ -28,7 +28,7 @@ import os
 
 work_dir = ".\\"
 
-out_dir = "SimPEG_PF_Inv\\"
+out_dir = "SimPEG_Susc_Inv\\"
 input_file = "MB_100m_input_file.inp"
 # %%
 # Read in the input file which included all parameters at once
