@@ -75,8 +75,9 @@ if driver.eps is not None:
     reg.eps_p = driver.eps[0]
     reg.eps_q = driver.eps[1]
 
-reg.cell_weights = wr#driver.cell_weights*mesh.vol**0.5
+reg.cell_weights = wr
 reg.mref = driver.mref
+
 # Data misfit function
 dmis = DataMisfit.l2_DataMisfit(survey)
 dmis.W = 1./survey.std
@@ -90,14 +91,17 @@ betaest = Directives.BetaEstimate_ByEig()
 # Here is where the norms are applied
 # Use pick a treshold parameter empirically based on the distribution of
 #  model parameters
-IRLS = Directives.Update_IRLS(f_min_change=1e-3, minGNiter=3, maxIRLSiter=10, chifact=5)
+IRLS = Directives.Update_IRLS(f_min_change=1e-3, minGNiter=3,
+							  maxIRLSiter=10, chifact=5)
+
 update_Jacobi = Directives.UpdatePreCond()
 
 saveModel = Directives.SaveUBCModelEveryIteration(mapping=actvMap)
 saveModel.fileName = work_dir + out_dir + '\\ModelSus'
 
 inv = Inversion.BaseInversion(invProb,
-                              directiveList=[betaest, IRLS, update_Jacobi,  saveModel])
+                              directiveList=[betaest, IRLS,
+                              				 update_Jacobi,  saveModel])
 
 # Run the inversion
 m0 = driver.m0  # Starting model
@@ -105,5 +109,8 @@ prob.model = m0
 mrec = inv.run(m0)
 
 if getattr(invProb, 'l2model', None) is not None:
-   Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "ModelSus_l2l2.sus", actvMap*invProb.l2model)
+   Mesh.TensorMesh.writeModelUBC(mesh,
+   								 work_dir + out_dir + "ModelSus_l2l2.sus",
+   								 actvMap*invProb.l2model)
+
 Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "ModelSus_lplq.sus", actvMap*invProb.model)

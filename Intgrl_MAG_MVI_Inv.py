@@ -32,9 +32,9 @@ import os
 # Define the inducing field parameter
 work_dir = ".\\"
 out_dir = "SimPEG_MVI_Inv\\"
-input_file = "MB_50m_input_file.inp"
+input_file = "MB_100m_input_file.inp"
 
-os.system('mkdir ' + work_dir+out_dir)
+os.system('mkdir ' + work_dir + out_dir)
 CMI = True
 
 # %% INPUTS
@@ -42,7 +42,7 @@ CMI = True
 # (mesh, topo, model, survey, inv param, etc.)
 driver = PF.MagneticsDriver.MagneticsDriver_Inv(work_dir + input_file)
 
-#%% Access the mesh and survey information
+# Access the mesh and survey information
 mesh = driver.mesh
 survey = driver.survey
 
@@ -59,8 +59,8 @@ nC = int(len(actv))
 # Create identity map
 # Create wires to link the regularization to each model blocks
 wires = Maps.Wires(('prim', nC),
-           ('second', nC),
-           ('third', nC))
+                   ('second', nC),
+                   ('third', nC))
 
 # Create identity map
 idenMap = Maps.IdentityMap(nP=3*nC)
@@ -69,7 +69,7 @@ mstart= np.ones(3*len(actv))*1e-4
 
 # Create the forward model operator
 prob = PF.Magnetics.MagneticVector(mesh, chiMap=idenMap,
-                                     actInd=actv)
+                                   actInd=actv)
 
 # Pair the survey and problem
 survey.pair(prob)
@@ -90,7 +90,7 @@ wr = (wr/np.max(wr))
 
 # Create a regularization
 reg_p = Regularization.Sparse(mesh, indActive=actv, mapping=wires.prim)
-reg_p.cell_weights = wires.prim* wr
+reg_p.cell_weights = wires.prim * wr
 
 reg_s = Regularization.Sparse(mesh, indActive=actv, mapping=wires.second)
 reg_s.cell_weights = wires.second * wr
@@ -114,7 +114,7 @@ betaCool = Directives.BetaSchedule(coolingFactor=2., coolingRate=1)
 update_Jacobi = Directives.UpdatePreCond()
 targetMisfit = Directives.TargetMisfit()
 
-saveModel = Directives.SaveUBCModelEveryIteration(mapping = actvMap)
+saveModel = Directives.SaveUBCModelEveryIteration(mapping=actvMap)
 saveModel.fileName = work_dir + out_dir + 'MVI'
 inv = Inversion.BaseInversion(invProb,
                               directiveList=[betaest, update_Jacobi, betaCool,
@@ -123,16 +123,17 @@ mrec = inv.run(mstart)
 
 
 obs_loc = survey.srcField.rxList[0].locs
-PF.Magnetics.writeUBCobs(work_dir+out_dir+'MVI.pre', survey, invProb.dpred)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'MVI.pre', survey, invProb.dpred)
 
-#%% Re-run the inversion if the CMI flag is activated.
+# Re-run the inversion if the CMI flag is activated.
 # The script will try to first load the amplitude model.
 # This part will break if the amplitude model is not in the working directory
 
 if CMI:
 
+    esusFile = '\\SimPEG_AMP_Inv\\Amplitude_lplq.sus'
     # Try to load amplitude model.
-    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, work_dir + '\\SimPEG_AMP_Inv\\AmpInv_Synthetic.sus')
+    MAI_m = Mesh.TensorMesh.readModelUBC(mesh, work_dir + esusFile)
 
     # Create rescaled weigths
     mamp = (MAI_m[actv]/MAI_m[actv].max() + 1e-2)**-1.
@@ -143,7 +144,7 @@ if CMI:
 
     # Create a regularization
     reg_p = Regularization.Sparse(mesh, indActive=actv, mapping=wires.prim)
-    reg_p.cell_weights = wires.prim* wr
+    reg_p.cell_weights = wires.prim * wr
 
     reg_s = Regularization.Sparse(mesh, indActive=actv, mapping=wires.second)
     reg_s.cell_weights = wires.second * wr
@@ -169,14 +170,15 @@ if CMI:
     update_Jacobi = Directives.UpdatePreCond()
     targetMisfit = Directives.TargetMisfit()
 
-    saveModel = Directives.SaveUBCModelEveryIteration(mapping = actvMap)
+    saveModel = Directives.SaveUBCModelEveryIteration(mapping=actvMap)
     saveModel.fileName = work_dir + out_dir + 'CMI'
     inv = Inversion.BaseInversion(invProb,
-                                  directiveList=[betaest, update_Jacobi, betaCool,
+                                  directiveList=[betaest, update_Jacobi,
+                                                 betaCool,
                                                  targetMisfit, saveModel])
     mrec = inv.run(mstart)
 
-    PF.Magnetics.writeUBCobs(work_dir+out_dir+'CMI.pre',survey,invProb.dpred)
+    PF.Magnetics.writeUBCobs(work_dir+out_dir+'CMI.pre', survey, invProb.dpred)
 
     obs_loc = survey.srcField.rxList[0].locs
 

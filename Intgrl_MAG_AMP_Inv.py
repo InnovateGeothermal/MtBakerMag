@@ -20,7 +20,8 @@ Created on December 7th, 2016
 @author: fourndo@gmail.com
 
 """
-from SimPEG import Mesh, Directives, Maps, InvProblem, Optimization, DataMisfit, Inversion, Utils, Regularization
+from SimPEG import Mesh, Directives, Maps, InvProblem, Optimization, DataMisfit
+from SimPEG import Inversion, Utils, Regularization
 import SimPEG.PF as PF
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,19 +44,16 @@ driver = PF.MagneticsDriver.MagneticsDriver_Inv(work_dir + input_file)
 mesh = driver.mesh
 survey = driver.survey
 
-active = driver.activeCells
 # %% STEP 1: EQUIVALENT SOURCE LAYER
 # The first step inverts for an equiavlent source layer in order to convert the
 # observed TMI data to magnetic field Amplitude.
 
 # Get the active cells for equivalent source is the top only
 # active = driver.activeCells(layer=True)
-topo = np.genfromtxt(work_dir + driver.topofile,
-                     skip_header=1)
+active = driver.activeCells
+surf = PF.MagneticsDriver.actIndFull2layer(mesh, active)
 
-# Get the layer of cells directyl below topo
-surf = Utils.surface2ind_topo(mesh, topo, 'N', layer=True)
-nC = int(np.sum(surf))  # Number of active cells
+nC = len(surf)  # Number of active cells
 
 # Create active map to go from reduce set to full
 surfMap = Maps.InjectActiveCells(mesh, surf, -100)
@@ -64,7 +62,8 @@ surfMap = Maps.InjectActiveCells(mesh, surf, -100)
 idenMap = Maps.IdentityMap(nP=nC)
 
 # Create static map
-prob = PF.Magnetics.MagneticIntegral(mesh, chiMap = idenMap, actInd=surf, equiSourceLayer=True)
+prob = PF.Magnetics.MagneticIntegral(mesh, chiMap=idenMap,
+                                     actInd=surf, equiSourceLayer=True)
 prob.solverOpts['accuracyTol'] = 1e-4
 
 # Pair the survey and problem
@@ -98,18 +97,22 @@ targetMisfit = Directives.TargetMisfit(chifact=0.1)
 
 # Put all the parts together
 inv = Inversion.BaseInversion(invProb,
-                              directiveList=[betaest, betaSchedule, targetMisfit])
+                              directiveList=[betaest, betaSchedule,
+                                             targetMisfit])
 
 # Run the equivalent source inversion
 mstart = np.zeros(nC)
-# print ('Target Misfit for Equivalent Source Inversion is: {:.1f}'.format(targmis.target))
-print ('Number of Data for Inversion is: {:.1f}'.format(survey.nD))
+print('Number of Data for Inversion is: {:.1f}'.format(survey.nD))
 mrec = inv.run(mstart)
 
 pred = invProb.dpred
-PF.Magnetics.writeUBCobs(work_dir+'EQS_predicted.pre', survey, pred)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'EQS_predicted.pre',
+                         survey, pred)
+
 # Ouput result
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "EquivalentSource.sus", surfMap*mrec)
+Mesh.TensorMesh.writeModelUBC(mesh,
+                              work_dir + out_dir + "EquivalentSource.sus",
+                              surfMap*mrec)
 
 # %% STEP 2: COMPUTE AMPLITUDE DATA
 # Now that we have an equialent source layer, we can forward model alh three
@@ -130,7 +133,8 @@ d_amp = np.sqrt(pred_x**2. +
 rxLoc = survey.srcField.rxList[0].locs
 
 # Write data out
-PF.Magnetics.writeUBCobs(work_dir + out_dir + 'Amplitude_data.obs', survey, d_amp)
+PF.Magnetics.writeUBCobs(work_dir + out_dir + 'Amplitude_data.obs',
+                         survey, d_amp)
 
 # %% STEP 3: RUN AMPLITUDE INVERSION
 # Now that we have |B| data, we can invert. This is a non-linear inversion,
@@ -167,8 +171,8 @@ reg = Regularization.Sparse(mesh, indActive=active, mapping=idenMap)
 reg.mref = np.zeros(nC)
 reg.norms = driver.lpnorms
 if driver.eps is not None:
-   reg.eps_p = driver.eps[0]
-   reg.eps_q = driver.eps[1]
+    reg.eps_p = driver.eps[0]
+    reg.eps_q = driver.eps[1]
 
 # Data misfit function
 dmis = DataMisfit.l2_DataMisfit(survey)
@@ -195,7 +199,7 @@ update_SensWeight = Directives.UpdateSensWeighting()
 update_Jacobi = Directives.UpdatePreCond()
 
 saveModel = Directives.SaveUBCModelEveryIteration(mapping=actvMap)
-saveModel.fileName = work_dir + out_dir + 'AmpInv'
+saveModel.fileName = work_dir + out_dir + 'AmpInvTemp'
 
 # Put all together
 inv = Inversion.BaseInversion(invProb,
@@ -205,8 +209,13 @@ inv = Inversion.BaseInversion(invProb,
 # Invert
 mrec = inv.run(mstart)
 
-# Outputs
+# Output results
 if getattr(invProb, 'l2model', None) is not None:
-   Mesh.TensorMesh.writeModelUBC(mesh, work_dir +out_dir+ "Amplitude_l2l2.sus", actvMap*invProb.l2model)
-Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "Amplitude_lplq.sus", actvMap*invProb.model)
-PF.Magnetics.writeUBCobs(work_dir+out_dir+'Amplitude_Inv.pre', survey, invProb.dpred)
+    Mesh.TensorMesh.writeModelUBC(mesh,
+                                  work_dir + out_dir + "Amplitude_l2l2.sus",
+                                  actvMap*invProb.l2model)
+
+Mesh.TensorMesh.writeModelUBC(mesh, work_dir + out_dir + "Amplitude_lplq.sus",
+                              actvMap*invProb.model)
+PF.Magnetics.writeUBCobs(work_dir+out_dir+'Amplitude_Inv.pre',
+                         survey, invProb.dpred)
