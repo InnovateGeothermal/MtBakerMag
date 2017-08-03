@@ -29,7 +29,7 @@ import os
 work_dir = ".\\"
 
 out_dir = "SimPEG_Susc_Inv\\"
-input_file = "MB_100m_input_file.inp"
+input_file = "MB_Regional_400m_input_file.inp"
 # %%
 # Read in the input file which included all parameters at once
 # (mesh, topo, model, survey, inv param, etc.)
