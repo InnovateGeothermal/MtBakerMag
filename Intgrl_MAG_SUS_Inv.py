@@ -105,7 +105,7 @@ inv = Inversion.BaseInversion(invProb,
 
 # Run the inversion
 m0 = driver.m0  # Starting model
-prob.model = m0
+# prob.model = m0
 mrec = inv.run(m0)
 
 if getattr(invProb, 'l2model', None) is not None:
